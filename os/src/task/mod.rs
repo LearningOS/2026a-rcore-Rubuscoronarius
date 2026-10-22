@@ -14,7 +14,7 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
-use crate::config::MAX_APP_NUM;
+use crate::config::{MAX_APP_NUM, MAX_SYSCALL_NUM};
 use crate::loader::{get_num_app, init_app_cx};
 use crate::sync::UPSafeCell;
 use lazy_static::*;
@@ -22,6 +22,14 @@ use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
 
 pub use context::TaskContext;
+
+/// How many times each task has called each syscall: `[task_id][syscall_id]`.
+///
+/// It lives in `.bss` instead of the TCB on purpose: 16 tasks * 500 counters
+/// would be a ~32KB temporary on the 64KB boot stack while `TASK_MANAGER` is
+/// being built, which is easy to overflow.
+static mut SYSCALL_TIMES: [[u32; MAX_SYSCALL_NUM]; MAX_APP_NUM] =
+    [[0; MAX_SYSCALL_NUM]; MAX_APP_NUM];
 
 /// The task manager, where all the tasks are managed.
 ///
@@ -104,6 +112,28 @@ impl TaskManager {
         inner.tasks[current].task_status = TaskStatus::Exited;
     }
 
+    /// Count one more call of `syscall_id` for the current task.
+    #[allow(static_mut_refs)]
+    fn inc_syscall_count(&self, syscall_id: usize) {
+        if syscall_id >= MAX_SYSCALL_NUM {
+            return;
+        }
+        let current = self.inner.exclusive_access().current_task;
+        unsafe {
+            SYSCALL_TIMES[current][syscall_id] += 1;
+        }
+    }
+
+    /// How many times the current task has called `syscall_id`.
+    #[allow(static_mut_refs)]
+    fn get_syscall_count(&self, syscall_id: usize) -> u32 {
+        if syscall_id >= MAX_SYSCALL_NUM {
+            return 0;
+        }
+        let current = self.inner.exclusive_access().current_task;
+        unsafe { SYSCALL_TIMES[current][syscall_id] }
+    }
+
     /// Find next task to run and return task id.
     ///
     /// In this case, we only return the first `Ready` task in task list.
@@ -168,4 +198,14 @@ pub fn suspend_current_and_run_next() {
 pub fn exit_current_and_run_next() {
     mark_current_exited();
     run_next_task();
+}
+
+/// Count one more call of `syscall_id` for the current task.
+pub fn inc_syscall_count(syscall_id: usize) {
+    TASK_MANAGER.inc_syscall_count(syscall_id);
+}
+
+/// How many times the current task has called `syscall_id`.
+pub fn get_syscall_count(syscall_id: usize) -> u32 {
+    TASK_MANAGER.get_syscall_count(syscall_id)
 }
