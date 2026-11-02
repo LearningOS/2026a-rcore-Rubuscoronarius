@@ -266,6 +266,75 @@ impl MemorySet {
         self.page_table.translate(vpn)
     }
 
+    /// Validate the entire user range before mapping or unmapping any pages.
+    pub fn user_mapping(&mut self, start: usize, len: usize, prot: Option<usize>) -> isize {
+        if start % PAGE_SIZE != 0 {
+            return -1;
+        }
+        let end = match start
+            .checked_add(len)
+            .and_then(|v| v.checked_add(PAGE_SIZE - 1))
+        {
+            Some(v) => v & !(PAGE_SIZE - 1),
+            None => return -1,
+        };
+        if end > (1usize << 38) {
+            return -1;
+        }
+        if let Some(p) = prot {
+            if p == 0 || p & !7 != 0 {
+                return -1;
+            }
+        }
+        for addr in (start..end).step_by(PAGE_SIZE) {
+            let vpn = VirtAddr::from(addr).floor();
+            let mapped = self.translate(vpn).map_or(false, |pte| pte.is_valid());
+            if mapped != prot.is_none() {
+                return -1;
+            }
+            if prot.is_none()
+                && !self.areas.iter().any(|area| {
+                    area.data_frames.contains_key(&vpn) && area.map_perm.contains(MapPermission::U)
+                })
+            {
+                return -1;
+            }
+        }
+        for addr in (start..end).step_by(PAGE_SIZE) {
+            let vpn = VirtAddr::from(addr).floor();
+            if let Some(p) = prot {
+                let flags =
+                    MapPermission::from_bits_truncate(((p << 1) as u8) | MapPermission::U.bits());
+                self.insert_framed_area(addr.into(), (addr + PAGE_SIZE).into(), flags);
+            } else {
+                let index = self
+                    .areas
+                    .iter()
+                    .position(|area| area.data_frames.contains_key(&vpn))
+                    .unwrap();
+                let mut area = self.areas.remove(index);
+                let old_end = area.vpn_range.get_end();
+                let old_start = area.vpn_range.get_start();
+                area.unmap_one(&mut self.page_table, vpn);
+                let next = VirtPageNum(vpn.0 + 1);
+                let right_frames = area.data_frames.split_off(&next);
+                if next < old_end {
+                    self.areas.push(MapArea {
+                        vpn_range: VPNRange::new(next, old_end),
+                        data_frames: right_frames,
+                        map_type: area.map_type,
+                        map_perm: area.map_perm,
+                    });
+                }
+                if old_start < vpn {
+                    area.vpn_range = VPNRange::new(old_start, vpn);
+                    self.areas.push(area);
+                }
+            }
+        }
+        0
+    }
+
     ///Remove all `MapArea`
     pub fn recycle_data_pages(&mut self) {
         self.areas.clear();
