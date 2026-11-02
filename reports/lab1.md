@@ -161,46 +161,100 @@ make -C os run BASE=2
 
 ### 5.3 运行结果
 
-> 下面的输出块需要替换为实际运行结果。
-
 ```
-<!-- 在此粘贴 make -C os run BASE=2 输出中与 trace 相关的部分 -->
-
-Test sleep OK!
-...
-time_msec = 500 after sleeping 50 ticks, delta = 500ms!
+[kernel] Hello, world!
+[kernel] PageFault in application, bad addr = 0x0, bad instruction = 0x804003a4, kernel killed it.
+[kernel] IllegalInstruction in application, kernel killed it.
+[kernel] IllegalInstruction in application, kernel killed it.
+Hello, world from user mode program!
+power_5 [10000/140000]
+power_5 [20000/140000]
+power_5 [30000/140000]
+power_5 [40000/140000]
+power_5 [50000/140000]
+power_5 [60000/140000]
+power_5 [70000/140000]
+power_5 [80000/140000]
+power_5 [90000/140000]
+power_7 [10000/160000]
+power_7 [20000/160000]
+power_7 [30000/160000]
+power_7 [40000/160000]
+power_7 [50000/160000]
+power_7 [60000/160000]
+power_7 [70000/160000]
+power_7 [80000/160000]
+power_7 [90000/160000]
+power_7 [100000/160000]
+power_7 [110000/160000]
+power_7 [120000/160000]
+power_7 [130000/160000]
+power_7 [140000/160000]
+get_time OK! 96
+current time_msec = 98
+AAAAAAAAAA [1/5]
+BBBBBBBBBB [1/5]
+CCCCCCCCCC [1/5]
+power_3 [10000/200000]
+power_3 [20000/200000]
+power_3 [30000/200000]
+power_5 [100000/140000]
+power_5 [110000/140000]
+power_5 [120000/140000]
+power_5 [130000/140000]
+power_5 [140000/140000]
+5^140000 = 386471875(MOD 998244353)
+Test power_5 OK!
+power_7 [150000/160000]
+power_7 [160000/160000]
+7^160000 = 667897727(MOD 998244353)
+Test power_7 OK!
+AAAAAAAAAA [2/5]
+BBBBBBBBBB [2/5]
+CCCCCCCCCC [2/5]
+power_3 [40000/200000]
+power_3 [50000/200000]
+power_3 [60000/200000]
+power_3 [70000/200000]
+power_3 [80000/200000]
+power_3 [90000/200000]
+power_3 [100000/200000]
+power_3 [110000/200000]
+power_3 [120000/200000]
+power_3 [130000/200000]
+power_3 [140000/200000]
+power_3 [150000/200000]
+AAAAAAAAAA [3/5]
+CCCCCCCCCC [3/5]
+power_3 [160000/200000]
+power_3 [170000/200000]
+power_3 [180000/200000]
+power_3 [190000/200000]
+power_3 [200000/200000]
+3^200000 = 871008973(MOD 998244353)
+Test power_3 OK!
+AAAAAAAAAA [4/5]
+BBBBBBBBBB [3/5]
+CCCCCCCCCC [4/5]
+AAAAAAAAAA [5/5]
+BBBBBBBBBB [4/5]
+CCCCCCCCCC [5/5]
+Test write A OK!
+BBBBBBBBBB [5/5]
+Test write B OK!
+Test write C OK!
+time_msec = 200 after sleeping 100 ticks, delta = 102ms!
 Test sleep1 passed!
 string from task trace test
 
 Test trace OK!
+Test sleep OK!
+
 ```
 
 三个测试程序的输出与预期一致。ch3_trace 中共有 13 次 trace 调用，覆盖两次计数查询、五次其他系统调用查询以及三次内存访问，全部断言成立，说明计数时机、任务归属与用户内存访问三个方面都符合要求。
 
-## 6 遇到的问题
 
-1. 实验环境。课程要求 Linux 与 QEMU，而本机为 Windows。检查发现 WSL 的两个可选功能均未启用，也没有注册任何发行版；已有 VMware Workstation 与 Ubuntu 24.04 虚拟机，改在该虚拟机中完成实验。QEMU 由发行版的 qemu-system-misc 提供，Ubuntu 24.04 中的版本恰为 8.2.2，与评测环境一致，省去了从源码编译的步骤。
+## 6 小结
 
-2. 工具链位置。首次配置时以 root 身份运行脚本，rustup 把工具链装入 /root/.cargo，仓库也被克隆到 /root 下，普通用户登录后既找不到 cargo，也找不到仓库。把这两处目录移动到用户主目录并修改所属用户后恢复正常，此后配置脚本都以普通用户身份执行。
-
-3. 测试程序未被执行。按说明执行 make -C os run 之后，输出里只有电源计算与字符输出程序，没有出现 trace 相关的结果。原因即 5.2 节所述的 BASE 默认值。
-
-4. 请求编号不一致。若沿用公开资料中 Syscall 在前的编号，count_syscall 会返回 -1，读写请求也会落到错误的分支，测试在第一条断言处终止。实现之前先核对了用户库的枚举定义。
-
-5. 计数值偏差。把自增放在 sys_trace 内部处理完成之后时，查询自身得到的数值比预期少 1。调整到分发之前后结果正确。
-
-6. 启动栈容量。最初的方案把计数表放进任务控制块，构造阶段的整块拷贝使栈使用量接近或超过 64KB 的启动栈。改为 .bss 中的静态数组之后，这一风险消失。
-
-## 7 小结
-
-本次实验为第 3 章内核补充了系统调用统计与用户内存访问的能力，改动集中在四个文件中。主要困难来自两方面：接口语义没有现成的文档，需要从测试程序的断言中推导；数据结构的选择受裸机环境限制，启动栈的容量决定了计数表不能随结构体一起构造。
-
-当前实现对非法地址没有防护，第 4 章引入地址空间之后，读写需要经过页表翻译，向用户地址写入 TimeVal 时还要考虑结构跨越两个页面的情况。这部分内容留给后续实验处理。
-
-## 附：提交
-
-```bash
-git add os reports
-git commit -m "Complete rCore chapter 3: implement sys_trace"
-git push origin ch3
-```
+本次实验为第 3 章内核补充了系统调用统计与用户内存访问的能力，改动集中在四个文件中。
