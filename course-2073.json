@@ -8,13 +8,13 @@
     "ch3": {
       "points": "7/7",
       "score": 100,
-      "commit": "5932a127e7191254ab746306bcc5b94ec427ff8c"
+      "commit": "b266b08b7023efed37d4d1e7abe928aba9cd555e"
     }
   },
   "score": 100,
   "upload": {
-    "status": "accepted",
-    "runId": "39804842886",
-    "runAttempt": "2"
+    "status": "pending",
+    "runId": "41393702237",
+    "runAttempt": "1"
   }
 }
