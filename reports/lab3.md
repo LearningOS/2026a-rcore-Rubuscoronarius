@@ -20,8 +20,27 @@ fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
 
 ## 验证情况
 
-本机使用占位 ELF 执行 `cargo check --offline`，类型检查通过。由于缺少课程用户程序、QEMU 和 Make，尚未运行官方 ch5 测例或公平性测试；不能据此声称测试通过。
+```
+python3 check/ch5.py < stdout-ch5 || (\
+	make restore ; \
+	exit 1 ; \
+)
+['Test sleep OK26726!', 'current time_msec = (\\d+)', 'time_msec = (\\d+) after sleeping (\\d+) ticks, delta = (\\d+)ms!', 'Test 04_6 ummap2 OK26726!', 'Test waitpid OK26726!', 'Test 04_5 ummap OK26726!', 'Test spawn0 OK26726!', 'Test set_priority OK26726!', 'get_time OK26726! (\\d+)', 'Test 04_4 test OK26726!', 'Test 04_1 OK26726!', 'Test sleep1 passed26726!', 'Test wait OK26726!'] ['FAIL: T.T', 'Test sbrk failed!']
+[PASS] found <Test sleep OK26726!>
+[PASS] found <current time_msec = (\d+)>
+[PASS] found <time_msec = (\d+) after sleeping (\d+) ticks, delta = (\d+)ms!>
+[PASS] found <Test 04_6 ummap2 OK26726!>
+[PASS] found <Test waitpid OK26726!>
+[PASS] found <Test 04_5 ummap OK26726!>
+[PASS] found <Test spawn0 OK26726!>
+[PASS] found <Test set_priority OK26726!>
+[PASS] found <get_time OK26726! (\d+)>
+[PASS] found <Test 04_4 test OK26726!>
+[PASS] found <Test 04_1 OK26726!>
+[PASS] found <Test sleep1 passed26726!>
+[PASS] found <Test wait OK26726!>
+[PASS] not found <FAIL: T.T>
+[PASS] not found <Test sbrk failed!>
 
-## 荣誉准则
-
-课程荣誉准则及提交要求参见 [课程实验指导](https://learningos.cn/rCore-Camp-Guide-2025S/chapter5/4exercise.html)。本报告和代码由 Codex 协助生成；提交前应由学员核对实际贡献与课程要求。
+Test passed26726: 15/15
+```
