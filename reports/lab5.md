@@ -16,10 +16,39 @@
 
 Mutex1 解锁时先将锁置为空闲并唤醒等待者；被唤醒的线程必须循环重新竞争。新到的线程可能先抢到锁，使等待者再次睡眠，可能饥饿，但循环保证最终持锁者才能进入临界区。Mutex2 在存在等待者时保持锁定并将锁直接交给被唤醒者；它醒来后不再竞争，减少抢占和重复等待，但依赖唤醒只发生一次且该线程确实获得锁；若线程被错误唤醒或接收锁的线程退出，可能破坏互斥或使锁永久占用。
 
-## 验证
+## 验证结果
 
-已通过内核 RISC-V 目标的 `cargo check --offline`，并对资源安全性检查进行了独立的互斥锁循环等待和多单位信号量测试。本机缺少 QEMU、make 和可用的 WSL Linux，尚未运行课程官方第八章检查器，不能据此声称全部测例通过。
+```
+python3 check/ch8.py < stdout-ch8 || (\
+	make restore ; \
+	exit 1 ; \
+)
+['Test write C OK23908!', 'hello child process!', 'pipetest passed23908!', 'Test power_7 OK23908!', 'deadlock test semaphore 1 OK23908!', 'sync_sem passed23908!', 'exit pass.', 'threads with arg test passed23908!', 'deadlock test semaphore 2 OK23908!', 'Test power_3 OK23908!', 'Test write A OK23908!', 'mpsc_sem passed23908!', 'file_test passed23908!', 'threads test passed23908!', 'test_condvar passed23908!', 'race adder using spin mutex test passed23908!', 'forktest pass.', 'deadlock test mutex 1 OK23908!', 'Test write B OK23908!', 'Test power_5 OK23908!', 'child process pid = (\\d+), exit code = (\\d+)', 'Hello, world from user mode program!', 'philosopher dining problem with mutex test passed23908!'] ['FAIL: T.T', 'Test sbrk failed!']
+[PASS] found <Test write C OK23908!>
+[PASS] found <hello child process!>
+[PASS] found <pipetest passed23908!>
+[PASS] found <Test power_7 OK23908!>
+[PASS] found <deadlock test semaphore 1 OK23908!>
+[PASS] found <sync_sem passed23908!>
+[PASS] found <exit pass.>
+[PASS] found <threads with arg test passed23908!>
+[PASS] found <deadlock test semaphore 2 OK23908!>
+[PASS] found <Test power_3 OK23908!>
+[PASS] found <Test write A OK23908!>
+[PASS] found <mpsc_sem passed23908!>
+[PASS] found <file_test passed23908!>
+[PASS] found <threads test passed23908!>
+[PASS] found <test_condvar passed23908!>
+[PASS] found <race adder using spin mutex test passed23908!>
+[PASS] found <forktest pass.>
+[PASS] found <deadlock test mutex 1 OK23908!>
+[PASS] found <Test write B OK23908!>
+[PASS] found <Test power_5 OK23908!>
+[PASS] found <child process pid = (\d+), exit code = (\d+)>
+[PASS] found <Hello, world from user mode program!>
+[PASS] found <philosopher dining problem with mutex test passed23908!>
+[PASS] not found <FAIL: T.T>
+[PASS] not found <Test sbrk failed!>
 
-## 荣誉准则及资料说明
-
-本报告和代码由 Codex 根据本人提出的任务协助编写；使用了课程第八章练习说明及本仓库已有代码、此前的 get_time 实现。课程的[荣誉准则](https://learningos.cn/rCore-Tutorial-Guide/honorcode.html)要求列明交流对象和参考资料，并对独立完成等事项作个人声明；本人的实际交流情况、课程对 AI 协助的规定及个人声明须由本人核实、填写，不能由工具代为承诺。
+Test passed23908: 25/25
+```
