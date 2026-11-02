@@ -8,6 +8,7 @@ use crate::trap::{trap_handler, TrapContext};
 
 /// The task control block (TCB) of a task.
 pub struct TaskControlBlock {
+    /// Number of calls to each system call made by this task.
     pub syscall_counts: [u32; crate::config::MAX_SYSCALL_NUM],
     /// Save task context
     pub task_cx: TaskContext,
