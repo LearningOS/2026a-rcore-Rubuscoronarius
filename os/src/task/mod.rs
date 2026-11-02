@@ -202,3 +202,26 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
 }
+
+/// Record a syscall for the current task.
+pub fn count_syscall(id: usize) {
+    let mut inner = TASK_MANAGER.inner.exclusive_access();
+    let cur = inner.current_task;
+    if id < crate::config::MAX_SYSCALL_NUM {
+        inner.tasks[cur].syscall_counts[id] += 1;
+    }
+}
+/// Return the current task's syscall count.
+pub fn syscall_count(id: usize) -> isize {
+    let inner = TASK_MANAGER.inner.exclusive_access();
+    if id >= crate::config::MAX_SYSCALL_NUM {
+        return 0;
+    }
+    inner.tasks[inner.current_task].syscall_counts[id] as isize
+}
+/// Operate on the current address space.
+pub fn with_memory_set<F: FnOnce(&mut crate::mm::MemorySet) -> isize>(f: F) -> isize {
+    let mut inner = TASK_MANAGER.inner.exclusive_access();
+    let cur = inner.current_task;
+    f(&mut inner.tasks[cur].memory_set)
+}

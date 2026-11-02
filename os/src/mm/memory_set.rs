@@ -233,6 +233,54 @@ impl MemorySet {
     pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
         self.page_table.translate(vpn)
     }
+    /// Map or unmap a user range, validating all pages before changing it.
+    pub fn user_mapping(&mut self, start: usize, len: usize, prot: Option<usize>) -> isize {
+        if start % PAGE_SIZE != 0 {
+            return -1;
+        }
+        let end = match start
+            .checked_add(len)
+            .and_then(|v| v.checked_add(PAGE_SIZE - 1))
+        {
+            Some(v) => v & !(PAGE_SIZE - 1),
+            None => return -1,
+        };
+        if end > (1usize << 38) {
+            return -1;
+        }
+        if let Some(p) = prot {
+            if p == 0 || p & !7 != 0 {
+                return -1;
+            }
+        }
+        for addr in (start..end).step_by(PAGE_SIZE) {
+            let vpn = VirtAddr::from(addr).floor();
+            let entry = self.translate(vpn);
+            let mapped = entry.map_or(false, |p| p.is_valid());
+            if mapped != prot.is_none() {
+                return -1;
+            }
+            if prot.is_none() && !self.areas.iter().any(|a| a.data_frames.contains_key(&vpn)) {
+                return -1;
+            }
+        }
+        for addr in (start..end).step_by(PAGE_SIZE) {
+            let vpn = VirtAddr::from(addr).floor();
+            if let Some(p) = prot {
+                let flags =
+                    MapPermission::from_bits_truncate(((p << 1) as u8) | MapPermission::U.bits());
+                self.insert_framed_area(addr.into(), (addr + PAGE_SIZE).into(), flags);
+            } else {
+                let area = self
+                    .areas
+                    .iter_mut()
+                    .find(|a| a.data_frames.contains_key(&vpn))
+                    .unwrap();
+                area.unmap_one(&mut self.page_table, vpn);
+            }
+        }
+        0
+    }
     /// shrink the area to new_end
     #[allow(unused)]
     pub fn shrink_to(&mut self, start: VirtAddr, new_end: VirtAddr) -> bool {
