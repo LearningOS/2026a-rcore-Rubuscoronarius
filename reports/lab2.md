@@ -12,6 +12,31 @@ Sv39 虚拟地址分为三级页索引和 12 位页内偏移。处理器从 satp
 
 页表项包含物理页号和 V、R、W、X、U、G、A、D 等标志：V 表示有效，R/W/X 表示读写执行权限，U 控制用户态访问，G 标记全局映射，A/D 分别表示访问和写入状态。TLB 缓存地址翻译结果，修改映射后需要确保旧翻译不会被继续使用。
 
-## 验证情况
+## 运行结果
 
-已运行 Rust 格式化检查。当前 Windows 环境缺少 QEMU、make 和 Linux 发行版，无法运行官方测试；尝试 `cargo check` 时依赖获取失败，GitHub 连接指向的本地代理不可用。因此本次实现尚未通过编译或运行验证，需在课程 Linux/Docker 环境执行 `make -C ci-user test CHAPTER=4` 后根据结果修正。
+```
+python3 check/ch4.py < stdout-ch4 || (\
+	make restore ; \
+	exit 1 ; \
+)
+['get_time OK27930! (\\d+)', 'Test sleep OK27930!', 'current time_msec = (\\d+)', 'time_msec = (\\d+) after sleeping (\\d+) ticks, delta = (\\d+)ms!', 'Test sleep1 passed27930!', 'string from task trace test', 'Test trace OK27930!', 'Test 04_1 OK27930!', 'Test 04_4 test OK27930!', 'Test 04_5 ummap OK27930!', 'Test 04_6 ummap2 OK27930!', 'Test trace_1 OK27930!'] ['FAIL: T.T', 'Test sbrk failed!', 'Should cause error, Test 04_2 fail!', 'Should cause error, Test 04_3 fail!']
+[PASS] found <get_time OK27930! (\d+)>
+[PASS] found <Test sleep OK27930!>
+[PASS] found <current time_msec = (\d+)>
+[PASS] found <time_msec = (\d+) after sleeping (\d+) ticks, delta = (\d+)ms!>
+[PASS] found <Test sleep1 passed27930!>
+[PASS] found <string from task trace test>
+[PASS] found <Test trace OK27930!>
+[PASS] found <Test 04_1 OK27930!>
+[PASS] found <Test 04_4 test OK27930!>
+[PASS] found <Test 04_5 ummap OK27930!>
+[PASS] found <Test 04_6 ummap2 OK27930!>
+[PASS] found <Test trace_1 OK27930!>
+[PASS] not found <FAIL: T.T>
+[PASS] not found <Test sbrk failed!>
+[PASS] not found <Should cause error, Test 04_2 fail!>
+[PASS] not found <Should cause error, Test 04_3 fail!>
+
+Test passed27930: 16/16
+
+```
