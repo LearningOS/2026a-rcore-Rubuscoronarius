@@ -15,6 +15,79 @@ use alloc::vec;
 use alloc::vec::Vec;
 use core::cell::RefMut;
 
+/// Resource accounting for one kind of synchronization object.
+#[derive(Default)]
+pub struct DeadlockResources {
+    available: Vec<usize>,
+    allocation: Vec<Vec<usize>>,
+    need: Vec<Option<usize>>,
+}
+
+impl DeadlockResources {
+    pub fn add_resource(&mut self, id: usize, count: usize) {
+        if self.available.len() <= id {
+            self.available.resize(id + 1, 0);
+        }
+        self.available[id] = count;
+        for row in &mut self.allocation {
+            row.resize(self.available.len(), 0);
+        }
+    }
+    fn ensure_thread(&mut self, tid: usize) {
+        while self.allocation.len() <= tid {
+            self.allocation.push(vec![0; self.available.len()]);
+            self.need.push(None);
+        }
+    }
+    /// Record a request and reject it if no completion order exists.
+    pub fn request(&mut self, tid: usize, id: usize, detect: bool) -> bool {
+        self.ensure_thread(tid);
+        self.need[tid] = Some(id);
+        if !detect {
+            return true;
+        }
+        let mut work = self.available.clone();
+        let mut finish = vec![false; self.need.len()];
+        loop {
+            let mut progress = false;
+            for i in 0..finish.len() {
+                if !finish[i] && self.need[i].map_or(true, |r| work[r] > 0) {
+                    finish[i] = true;
+                    for (w, held) in work.iter_mut().zip(&self.allocation[i]) {
+                        *w += *held;
+                    }
+                    progress = true;
+                }
+            }
+            if !progress {
+                break;
+            }
+        }
+        if finish.iter().all(|done| *done) {
+            true
+        } else {
+            self.need[tid] = None;
+            false
+        }
+    }
+    pub fn acquired(&mut self, tid: usize, id: usize) {
+        self.ensure_thread(tid);
+        self.need[tid] = None;
+        self.available[id] = self.available[id].saturating_sub(1);
+        self.allocation[tid][id] += 1;
+    }
+    pub fn release(&mut self, tid: usize, id: usize) {
+        self.ensure_thread(tid);
+        // Semaphore up is also allowed from a thread that did not down it.
+        if self.allocation[tid][id] > 0 {
+            self.allocation[tid][id] -= 1;
+        } else if let Some(row) = self.allocation.iter_mut().find(|row| row[id] > 0) {
+            row[id] -= 1;
+        }
+        self.available[id] += 1;
+    }
+}
+
 /// Process Control Block
 pub struct ProcessControlBlock {
     /// immutable
@@ -47,6 +120,12 @@ pub struct ProcessControlBlockInner {
     pub mutex_list: Vec<Option<Arc<dyn Mutex>>>,
     /// semaphore list
     pub semaphore_list: Vec<Option<Arc<Semaphore>>>,
+    /// Whether requests are checked for deadlocks.
+    pub deadlock_detect: bool,
+    /// Mutex resource accounting.
+    pub mutex_resources: DeadlockResources,
+    /// Semaphore resource accounting.
+    pub semaphore_resources: DeadlockResources,
     /// condvar list
     pub condvar_list: Vec<Option<Arc<Condvar>>>,
 }
@@ -119,6 +198,9 @@ impl ProcessControlBlock {
                     mutex_list: Vec::new(),
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
+                    deadlock_detect: false,
+                    mutex_resources: DeadlockResources::default(),
+                    semaphore_resources: DeadlockResources::default(),
                 })
             },
         });
@@ -245,6 +327,9 @@ impl ProcessControlBlock {
                     mutex_list: Vec::new(),
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
+                    deadlock_detect: false,
+                    mutex_resources: DeadlockResources::default(),
+                    semaphore_resources: DeadlockResources::default(),
                 })
             },
         });
