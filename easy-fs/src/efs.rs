@@ -3,7 +3,8 @@ use super::{
     SuperBlock,
 };
 use crate::BLOCK_SZ;
-use alloc::sync::Arc;
+use alloc::collections::BTreeMap;
+use alloc::sync::{Arc, Weak};
 use spin::Mutex;
 ///An easy file system on block
 pub struct EasyFileSystem {
@@ -13,6 +14,7 @@ pub struct EasyFileSystem {
     pub inode_bitmap: Bitmap,
     ///Data bitmap
     pub data_bitmap: Bitmap,
+    pub(crate) open_inodes: BTreeMap<u32, Weak<Inode>>,
     inode_area_start_block: u32,
     data_area_start_block: u32,
 }
@@ -43,6 +45,7 @@ impl EasyFileSystem {
             block_device: Arc::clone(&block_device),
             inode_bitmap,
             data_bitmap,
+            open_inodes: BTreeMap::new(),
             inode_area_start_block: 1 + inode_bitmap_blocks,
             data_area_start_block: 1 + inode_total_blocks + data_bitmap_blocks,
         };
@@ -97,6 +100,7 @@ impl EasyFileSystem {
                         (1 + inode_total_blocks) as usize,
                         super_block.data_bitmap_blocks as usize,
                     ),
+                    open_inodes: BTreeMap::new(),
                     inode_area_start_block: 1 + super_block.inode_bitmap_blocks,
                     data_area_start_block: 1 + inode_total_blocks + super_block.data_bitmap_blocks,
                 };
@@ -121,6 +125,12 @@ impl EasyFileSystem {
             (inode_id % inodes_per_block) as usize * inode_size,
         )
     }
+    /// Convert an inode position back to its inode number.
+    pub fn inode_id(&self, block: u32, offset: usize) -> u32 {
+        let per_block = BLOCK_SZ / core::mem::size_of::<DiskInode>();
+        (block - self.inode_area_start_block) * per_block as u32
+            + (offset / core::mem::size_of::<DiskInode>()) as u32
+    }
     /// Get data block by id
     pub fn get_data_block_id(&self, data_block_id: u32) -> u32 {
         self.data_area_start_block + data_block_id
@@ -128,6 +138,13 @@ impl EasyFileSystem {
     /// Allocate a new inode
     pub fn alloc_inode(&mut self) -> u32 {
         self.inode_bitmap.alloc(&self.block_device).unwrap() as u32
+    }
+
+    /// Release an inode allocation.
+    pub fn dealloc_inode(&mut self, inode_id: u32) {
+        self.inode_bitmap
+            .dealloc(&self.block_device, inode_id as usize);
+        self.open_inodes.remove(&inode_id);
     }
 
     /// Allocate a data block
